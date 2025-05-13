@@ -3,24 +3,46 @@ package simplenet
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strings"
 	"time"
 )
 
-func tcpSend(protocol string, netloc string, data string, duration time.Duration, size int) (string, error) {
+func tcpSend(protocol string, netloc string, data string, duration time.Duration, size int, proxy ...string) (string, error) {
 	protocol = strings.ToLower(protocol)
-	conn, err := net.DialTimeout(protocol, netloc, duration)
-	if err != nil {
-		//fmt.Println(conn)
-		return "", errors.New(err.Error() + " STEP1:CONNECT")
+	if len(proxy) > 0 {
+		conn, err := net.DialTimeout(protocol, proxy[0], duration)
+		if err != nil {
+			//fmt.Println(conn)
+			return "", errors.New(err.Error() + " STEP1:CONNECT")
+		}
+		defer conn.Close()
+
+		// 发送HTTP CONNECT请求建立隧道（网页6的核心逻辑）
+		connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", netloc, netloc)
+		if _, err := conn.Write([]byte(connectReq)); err != nil {
+			return "", fmt.Errorf("%v STEP2:SEND_CONNECT", err)
+		}
+		return tcpSendByConn(conn, size)
+	} else {
+		conn, err := net.DialTimeout(protocol, netloc, duration)
+		if err != nil {
+			//fmt.Println(conn)
+			return "", errors.New(err.Error() + " STEP1:CONNECT")
+		}
+		defer conn.Close()
+		_, err = conn.Write([]byte(data))
+		if err != nil {
+			return "", errors.New(err.Error() + " STEP2:WRITE")
+		}
+		return tcpSendByConn(conn, size)
 	}
-	defer conn.Close()
-	_, err = conn.Write([]byte(data))
-	if err != nil {
-		return "", errors.New(err.Error() + " STEP2:WRITE")
-	}
+}
+
+func tcpSendByConn(conn net.Conn, size int) (string, error) {
+	var err error
 	//读取数据
 	var buf []byte              // big buffer
 	var tmp = make([]byte, 256) // using small tmo buffer for demonstrating
@@ -49,7 +71,7 @@ func tcpSend(protocol string, netloc string, data string, duration time.Duration
 	return string(buf), nil
 }
 
-func tlsSend(protocol string, netloc string, data string, duration time.Duration, size int) (string, error) {
+func tlsSend(protocol string, netloc string, data string, duration time.Duration, size int, proxy ...string) (string, error) {
 	protocol = strings.ToLower(protocol)
 	config := &tls.Config{
 		InsecureSkipVerify: true,
@@ -96,10 +118,10 @@ func tlsSend(protocol string, netloc string, data string, duration time.Duration
 	return string(buf), nil
 }
 
-func Send(protocol string, tls bool, netloc string, data string, duration time.Duration, size int) (string, error) {
+func Send(protocol string, tls bool, netloc string, data string, duration time.Duration, size int, proxy ...string) (string, error) {
 	if tls {
-		return tlsSend(protocol, netloc, data, duration, size)
+		return tlsSend(protocol, netloc, data, duration, size, proxy...)
 	} else {
-		return tcpSend(protocol, netloc, data, duration, size)
+		return tcpSend(protocol, netloc, data, duration, size, proxy...)
 	}
 }
