@@ -3,7 +3,7 @@ package gonmap
 import (
 	"errors"
 	"fmt"
-	"github.com/lcvvvv/gonmap/simplenet"
+	"github.com/pallcard/gonmap/simplenet"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,6 +28,8 @@ type probe struct {
 	//探针指纹库若匹配失败，则会尝试使用fallback指定探针的指纹库
 	fallback string
 
+	proxy string
+
 	//探针发送协议类型
 	protocol string
 	//探针发送数据
@@ -39,12 +41,12 @@ func (p *probe) scan(host string, port int, tls bool, timeout time.Duration, siz
 
 	sendRaw := strings.Replace(p.sendRaw, "{Host}", fmt.Sprintf("%s:%d", host, port), -1)
 
-	text, err := simplenet.Send(p.protocol, tls, uri, sendRaw, timeout, size)
+	text, err := simplenet.Send(p.protocol, tls, uri, sendRaw, timeout, size, p.proxy)
 	if err == nil {
 		return text, tls, nil
 	}
 	if strings.Contains(err.Error(), "STEP1") && tls == true {
-		text, err := simplenet.Send(p.protocol, false, uri, p.sendRaw, timeout, size)
+		text, err := simplenet.Send(p.protocol, false, uri, p.sendRaw, timeout, size, p.proxy)
 		return text, false, err
 	}
 	return text, tls, err
