@@ -21,10 +21,16 @@ type Nmap struct {
 	//检测端口存活的超时时间
 	timeout time.Duration
 
+	proxy string
+
 	bypassAllProbePort PortList
 	sslSecondProbeMap  ProbeList
 	allProbeMap        ProbeList
 	sslProbeMap        ProbeList
+}
+
+func (n *Nmap) SetProxy(proxy string) {
+	n.proxy = proxy
 }
 
 //扫描类
@@ -108,6 +114,7 @@ func (n *Nmap) getResponseBySSLSecondProbes(host string, port int, timeout time.
 
 func (n *Nmap) getResponseByHTTPS(host string, port int, timeout time.Duration) (status Status, response *Response) {
 	var httpRequest = n.probeNameMap["TCP_GetRequest"]
+	httpRequest.proxy = n.proxy
 	return n.getResponse(host, port, true, timeout, httpRequest)
 }
 
@@ -119,7 +126,7 @@ func (n *Nmap) getResponseByProbes(host string, port int, timeout time.Duration,
 		}
 		n.probeUsed = append(n.probeUsed, requestName)
 		p := n.probeNameMap[requestName]
-
+		p.proxy = n.proxy
 		status, response = n.getResponse(host, port, p.sslports.exist(port), timeout, p)
 		//如果端口未开放，则等待10s后重新连接
 		//if b.status == Closed {
@@ -366,7 +373,7 @@ func (n *Nmap) sortOfRarity(list ProbeList) ProbeList {
 	return list
 }
 
-//工具函数
+// 工具函数
 func DnsScan(host string, port int) bool {
 	domainServer := fmt.Sprintf("%s:%d", host, port)
 	c := dns.Client{
